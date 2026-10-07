@@ -1,0 +1,26 @@
+# Weather Starter Themes
+
+This catalog records the visual directions discussed for Weather Starter. The theme selector currently implements **Apple**, **Google**, **Swiss Forecast**, and **Coastal Atlas**. The remaining themes are documented design directions and are not yet selectable.
+
+| Theme | Description | Color | Typography | Cards | Layout density |
+|---|---|---|---|---|---|
+| **Apple Weather** | Calm, atmospheric weather cards with a strong sense of depth. | Sky gradients, muted blues, condition-tinted backgrounds. | Thin display temperatures with a clean system sans. | Translucent glass, soft blur, large radii. | Spacious; one prominent location at a time. |
+| **Google Weather** | A bright, familiar forecast dashboard with clear map cues and easy scanning. | White, pale gray, sky blue, restrained condition colors. | Geometric sans with bold temperatures. | White surfaces, subtle borders and shadows. | Medium; compact forecast rows. |
+| **Swiss Forecast** | A precise, editorial dashboard that treats weather as useful data. | Warm white, charcoal, one signal color. | Strong grotesk headings and tabular numerals. | Square corners, hairline dividers, minimal shadow. | High; aligned columns and compact charts. |
+| **Coastal Atlas** | A map-forward interface inspired by marine charts and island navigation. | Deep navy, sea teal, sand, buoy orange. | Condensed labels with readable sans body text. | Outlined panels and chart-like insets. | Medium-high; map and wind details prominent. |
+| **Monsoon Journal** | A tropical field-notes style centered on Singapore’s rain patterns. | Storm blue, mist gray, leaf green, rain cyan. | Friendly humanist sans with italic forecast notes. | Layered paper-like panels and subtle texture. | Medium; prioritizes precipitation and hourly changes. |
+| **Night Observatory** | A dark, quiet dashboard that makes weather data feel atmospheric. | Near-black, indigo, cool violet, luminous cyan. | Clean geometric sans with restrained glow on values. | Dark matte surfaces with fine illuminated edges. | Medium; generous space around key readings. |
+| **Sunroom** | A warm, optimistic interface that feels like a bright morning forecast. | Cream, pale peach, soft yellow, sky blue. | Rounded sans and oversized friendly temperatures. | Warm white, soft shadows, generous corners. | Low-medium; summaries before detail. |
+| **Weather Terminal** | A compact, high-contrast control panel for people who want readings first. | Graphite, black, lime or amber accents. | Monospace values with compact sans labels. | Rigid grid cells, thin rules, minimal radius. | Very high; many metrics visible at once. |
+| **Pastel Isobars** | A soft, contemporary look that uses gentle color fields to distinguish conditions. | Lavender, pale blue, mint, blush, softened neutrals. | Rounded modern sans with medium-weight headings. | Pill-like corners and low-contrast surfaces. | Low-medium; clear breathing room between cards. |
+| **Rain Radar** | A vivid, action-oriented dashboard that puts rain timing and intensity first. | Charcoal map with a cyan-to-yellow-to-red precipitation scale. | Bold condensed labels and clear numeric hierarchy. | Dark panels with bright chart accents. | Medium; prioritizes map, rain timeline, and hourly forecast. |
+| **Civic Weather** | A dependable public-information style with neutral colors and explicit context. | Slate, white, civic blue, alert orange. | Accessible sans, sturdy headings, tabular readings. | Flat panels, clear borders, strong section labels. | High; source and update time easy to find. |
+| **Brutalist Forecast** | A bold poster-like dashboard with oversized typography and sharp contrasts. | Black, white, electric blue or acid yellow. | Extra-bold grotesk with huge temperature numerals. | Hard edges, thick borders, almost no shadow. | Low; one or two strong focal points per screen. |
+| **Soft Glass** | A refined translucent interface that blends weather panels into a scenic backdrop. | Cool neutrals, silver-blue glass, subtle accents. | Light display face with crisp sans labels. | Blurred translucent surfaces, thin highlights, deep radii. | Low-medium; layered but uncluttered. |
+| **Field Guide** | A nature-oriented weather dashboard with a tactile, outdoors feel. | Moss, stone, cream, rust. | Humanist sans with restrained serif section titles. | Lightly textured surfaces and simple borders. | Medium; combines readings with descriptive forecast text. |
+| **Neon Storm** | A dramatic, energetic theme for severe weather and changing conditions. | Deep navy, electric cyan, magenta, alert red. | Strong sans with bright numeric highlights. | Dark gradients, luminous borders, sharper radii. | Medium; alerts and changes visually dominant. |
+| **Minimal Meridian** | A restrained, map-and-location-first design with concise weather details. | White, charcoal, muted blue, one location accent. | Neutral sans with precise tabular numerals. | Borderless or hairline surfaces with small corner radii. | Medium-high; gives the map and location list more space. |
+
+## Shared behavior
+
+Themes change presentation only. Saved locations, weather snapshots, map locations, add-location and refresh flows, and backend behavior remain shared across themes. The selected theme is stored in browser local storage.

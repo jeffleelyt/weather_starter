@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useStore } from '../state/store';
 import { CloudIcon, HomeIcon } from './icons';
 import { formatTemperature, formatTime } from './format';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import type { Location } from '../types';
 
 interface SidebarCardProps {
@@ -10,7 +11,9 @@ interface SidebarCardProps {
 }
 
 export function SidebarCard({ location, isHome }: SidebarCardProps) {
-  const { selectedId, select } = useStore();
+  const { selectedId, select, delete: removeLocation } = useStore();
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const isSelected = selectedId === location.id;
   const observed = formatTime(location.weather.observed_at);
   const area =
@@ -21,6 +24,18 @@ export function SidebarCard({ location, isHome }: SidebarCardProps) {
   const low = formatTemperature(location.weather.forecast_low_c);
 
   const onSelect = () => select(location.id);
+  const onDelete = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    if (isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await removeLocation(location.id);
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Could not delete location');
+      setIsDeleting(false);
+    }
+  };
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
     if (event.key === 'Enter' || event.key === ' ') {
@@ -59,8 +74,21 @@ export function SidebarCard({ location, isHome }: SidebarCardProps) {
             )}
           </div>
         </div>
-        <div className="text-3xl font-light tabular-nums text-white/90">{temperature}</div>
+        <div className="flex shrink-0 items-start gap-2">
+          <div className="text-3xl font-light tabular-nums text-white/90">{temperature}</div>
+          <button
+            type="button"
+            aria-label={`Delete ${area}`}
+            title="Delete location"
+            disabled={isDeleting}
+            onClick={onDelete}
+            className="-mr-2 -mt-1 flex h-7 w-7 items-center justify-center rounded-full text-lg leading-none text-white/60 transition hover:bg-red-400/20 hover:text-red-200 disabled:opacity-50"
+          >
+            ×
+          </button>
+        </div>
       </div>
+      {deleteError && <p role="alert" className="px-4 pb-2 text-xs text-red-200">{deleteError}</p>}
       <div className="mt-3 flex items-center justify-between border-t border-white/10 px-4 py-2 text-xs">
         <div className="flex items-center gap-2 text-white/80">
           <CloudIcon className="h-4 w-4 text-white/70" />

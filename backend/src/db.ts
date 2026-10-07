@@ -104,6 +104,11 @@ export async function updateWeather(
   return row ? rowToRecord(row) : null;
 }
 
+export async function deleteLocation(id: number): Promise<boolean> {
+  const rows = await db.delete(locations).where(eq(locations.id, id)).returning({ id: locations.id }).all();
+  return rows.length > 0;
+}
+
 export function closeDatabase(): void {
   sqlite.close();
 }

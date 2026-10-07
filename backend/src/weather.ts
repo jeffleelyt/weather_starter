@@ -176,35 +176,119 @@ export class SingaporeWeatherClient {
       baseUrl?: string;
       apiKey?: string;
       timeoutMs?: number;
+      rateLimitRetryDelayMs?: number;
       userAgent?: string;
     } = {},
   ) {}
 
-  async getCurrentWeather(latitude: number, longitude: number): Promise<WeatherSnapshot> {
-    const forecastPayload = await this.fetchLatestForecastPayload().catch(() => null);
-    return forecastPayload
-      ? this.snapshotFromPayload(forecastPayload, latitude, longitude)
-      : this.emptyForecastSnapshot();
+  async getCurrentWeather(
+    latitude: number,
+    longitude: number,
+  ): Promise<WeatherSnapshot> {
+    const [
+      forecastResult,
+      temperatureResult,
+      humidityResult,
+      rainfallResult,
+      windSpeedResult,
+      windDirectionResult,
+      uvResult,
+      airQualityResult,
+      twentyFourHourResult,
+      fourDayForecastResult,
+    ] = await Promise.allSettled([
+      this.fetchLatestForecastPayload(),
+      this.fetchNearestReading("air-temperature", latitude, longitude),
+      this.fetchNearestReading("relative-humidity", latitude, longitude),
+      this.fetchNearestReading("rainfall", latitude, longitude),
+      this.fetchNearestReading("wind-speed", latitude, longitude),
+      this.fetchNearestReading("wind-direction", latitude, longitude),
+      this.fetchUvIndex(),
+      this.fetchAirQuality(latitude, longitude),
+      this.fetchTwentyFourHourForecast(latitude, longitude),
+      this.fetchFourDayForecast(),
+    ]);
+
+    const snapshot =
+      forecastResult.status === "fulfilled"
+        ? this.snapshotFromPayload(forecastResult.value, latitude, longitude)
+        : this.emptyForecastSnapshot();
+
+    return {
+      ...snapshot,
+      temperature_c:
+        temperatureResult.status === "fulfilled"
+          ? temperatureResult.value.value
+          : null,
+      humidity_percent:
+        humidityResult.status === "fulfilled"
+          ? humidityResult.value.value
+          : null,
+      rainfall_mm:
+        rainfallResult.status === "fulfilled"
+          ? rainfallResult.value.value
+          : null,
+      wind_speed_knots:
+        windSpeedResult.status === "fulfilled"
+          ? windSpeedResult.value.value
+          : null,
+      wind_direction_degrees:
+        windDirectionResult.status === "fulfilled"
+          ? windDirectionResult.value.value
+          : null,
+      uv_index: uvResult.status === "fulfilled" ? uvResult.value.value : null,
+      psi_twenty_four_hourly:
+        airQualityResult.status === "fulfilled"
+          ? airQualityResult.value.psi
+          : null,
+      pm25_one_hourly:
+        airQualityResult.status === "fulfilled"
+          ? airQualityResult.value.pm25
+          : null,
+      air_quality_region:
+        airQualityResult.status === "fulfilled"
+          ? airQualityResult.value.region
+          : null,
+      forecast_low_c:
+        twentyFourHourResult.status === "fulfilled"
+          ? twentyFourHourResult.value.low
+          : null,
+      forecast_high_c:
+        twentyFourHourResult.status === "fulfilled"
+          ? twentyFourHourResult.value.high
+          : null,
+      forecast_periods:
+        twentyFourHourResult.status === "fulfilled"
+          ? twentyFourHourResult.value.periods
+          : [],
+      daily_forecast:
+        fourDayForecastResult.status === "fulfilled"
+          ? fourDayForecastResult.value.days
+          : [],
+    };
   }
 
   async fetchLatestForecastPayload(): Promise<ForecastPayload> {
-    return this.fetchJson(`${this.apiBaseUrl()}/v2/real-time/api/two-hr-forecast`);
+    return this.fetchJson(
+      `${this.apiBaseUrl()}/v2/real-time/api/two-hr-forecast`,
+    );
   }
 
   async fetchNearestReading(
     endpoint:
-      | 'air-temperature'
-      | 'relative-humidity'
-      | 'rainfall'
-      | 'wind-speed'
-      | 'wind-direction',
+      | "air-temperature"
+      | "relative-humidity"
+      | "rainfall"
+      | "wind-speed"
+      | "wind-direction",
     latitude: number,
     longitude: number,
   ): Promise<{ value: number | null; timestamp: string | null }> {
     const payload = await this.fetchReadingPayload(endpoint);
     if (payload.code !== undefined && payload.code !== 0) {
       throw new WeatherProviderError(
-        payload.errorMsg ?? `Weather provider returned an error for ${endpoint}`,
+        payload.errorMsg ??
+          `Weather provider returned an error for ${endpoint}`,
       );
     }
 
@@ -218,9 +302,17 @@ export class SingaporeWeatherClient {
     const valueByStation = new Map(
       values
         .map((entry) => [entry.stationId, Number(entry.value)] as const)
-        .filter((entry): entry is [string, number] => Boolean(entry[0]) && !Number.isNaN(entry[1])),
+        .filter(
+          (entry): entry is [string, number] =>
+            Boolean(entry[0]) && !Number.isNaN(entry[1]),
+        ),
     );
-    const station = nearestStation(stations, latitude, longitude, valueByStation);
+    const station = nearestStation(
+      stations,
+      latitude,
+      longitude,
+      valueByStation,
+    );
     return {
       value: station ? (valueByStation.get(station.id) ?? null) : null,
       timestamp: latestReading?.timestamp ?? null,
@@ -231,11 +323,16 @@ export class SingaporeWeatherClient {
     return this.fetchJson(`${this.apiBaseUrl()}/v2/real-time/api/${endpoint}`);
   }
 
-  async fetchUvIndex(): Promise<{ value: number | null; timestamp: string | null }> {
-    const payload = await this.fetchJson<UvPayload>(`${this.apiBaseUrl()}/v2/real-time/api/uv`);
+  async fetchUvIndex(): Promise<{
+    value: number | null;
+    timestamp: string | null;
+  }> {
+    const payload = await this.fetchJson<UvPayload>(
+      `${this.apiBaseUrl()}/v2/real-time/api/uv`,
+    );
     if (payload.code !== undefined && payload.code !== 0) {
       throw new WeatherProviderError(
-        payload.errorMsg ?? 'Weather provider returned an error for uv',
+        payload.errorMsg ?? "Weather provider returned an error for uv",
       );
     }
 
@@ -243,7 +340,8 @@ export class SingaporeWeatherClient {
     const latest = record?.index?.[0];
     return {
       value: numberOrNull(latest?.value),
-      timestamp: record?.updatedTimestamp ?? latest?.hour ?? record?.timestamp ?? null,
+      timestamp:
+        record?.updatedTimestamp ?? latest?.hour ?? record?.timestamp ?? null,
     };
   }
 
@@ -263,12 +361,16 @@ export class SingaporeWeatherClient {
     for (const payload of [psiPayload, pm25Payload]) {
       if (payload.code !== undefined && payload.code !== 0) {
         throw new WeatherProviderError(
-          payload.errorMsg ?? 'Weather provider returned an air quality error',
+          payload.errorMsg ?? "Weather provider returned an air quality error",
         );
       }
     }
 
-    const region = nearestRegionName(psiPayload.data?.regionMetadata ?? [], latitude, longitude);
+    const region = nearestRegionName(
+      psiPayload.data?.regionMetadata ?? [],
+      latitude,
+      longitude,
+    );
     const psiItem = psiPayload.data?.items?.[0];
     const pm25Item = pm25Payload.data?.items?.[0];
     return {
@@ -296,26 +398,34 @@ export class SingaporeWeatherClient {
     );
     if (payload.code !== undefined && payload.code !== 0) {
       throw new WeatherProviderError(
-        payload.errorMsg ?? 'Weather provider returned a 24-hour forecast error',
+        payload.errorMsg ??
+          "Weather provider returned a 24-hour forecast error",
       );
     }
 
     const record = payload.data?.records?.[0];
-    const region = nearestRegionName(defaultRegions(), latitude, longitude) ?? 'central';
+    const region =
+      nearestRegionName(defaultRegions(), latitude, longitude) ?? "central";
     return {
       low: numberOrNull(record?.general?.temperature?.low),
       high: numberOrNull(record?.general?.temperature?.high),
       periods: (record?.periods ?? [])
         .map((period) => ({
-          label: period.timePeriod?.text ?? '',
-          forecast: period.regions?.[region]?.text ?? period.regions?.central?.text ?? '',
+          label: period.timePeriod?.text ?? "",
+          forecast:
+            period.regions?.[region]?.text ??
+            period.regions?.central?.text ??
+            "",
         }))
         .filter((period) => period.label && period.forecast),
       timestamp: record?.updatedTimestamp ?? record?.timestamp ?? null,
     };
   }
 
-  async fetchFourDayForecast(): Promise<{ days: DailyForecast[]; timestamp: string | null }> {
+  async fetchFourDayForecast(): Promise<{
+    days: DailyForecast[];
+    timestamp: string | null;
+  }> {
     const payload = await this.fetchJson<FourDayPayload>(
       `${this.legacyApiBaseUrl()}/v1/environment/4-day-weather-forecast`,
     );
@@ -323,8 +433,8 @@ export class SingaporeWeatherClient {
     return {
       days: (item?.forecasts ?? [])
         .map((forecast) => ({
-          date: forecast.date ?? forecast.timestamp ?? '',
-          forecast: forecast.forecast ?? '',
+          date: forecast.date ?? forecast.timestamp ?? "",
+          forecast: forecast.forecast ?? "",
           temperature_low_c: numberOrNull(forecast.temperature?.low),
           temperature_high_c: numberOrNull(forecast.temperature?.high),
         }))
@@ -334,44 +444,72 @@ export class SingaporeWeatherClient {
   }
 
   private apiBaseUrl(): string {
-    return this.options.baseUrl ?? 'https://api-open.data.gov.sg';
+    return this.options.baseUrl ?? "https://api-open.data.gov.sg";
   }
 
   private legacyApiBaseUrl(): string {
-    return 'https://api.data.gov.sg';
+    return "https://api.data.gov.sg";
   }
 
   private async fetchJson<T>(url: string): Promise<T> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 8000);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(
+        () => controller.abort(),
+        this.options.timeoutMs ?? 8000,
+      );
+      let retryDelayMs: number | null = null;
 
-    try {
-      const response = await fetch(url, {
-        signal: controller.signal,
-        headers: {
-          Accept: 'application/json',
-          'User-Agent': this.options.userAgent ?? 'weather-starter/0.1 (educational project)',
-          ...(this.options.apiKey ? { 'x-api-key': this.options.apiKey } : {}),
-        },
-      });
+      try {
+        const response = await fetch(url, {
+          signal: controller.signal,
+          headers: {
+            Accept: "application/json",
+            "User-Agent":
+              this.options.userAgent ??
+              "weather-starter/0.1 (educational project)",
+            ...(this.options.apiKey
+              ? { "x-api-key": this.options.apiKey }
+              : {}),
+          },
+        });
 
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new WeatherProviderError('Weather provider rate limit reached (HTTP 429)');
+        if (response.status === 429 && attempt === 0) {
+          retryDelayMs =
+            this.options.rateLimitRetryDelayMs ??
+            rateLimitRetryDelay(response.headers.get("Retry-After"));
+        } else if (!response.ok) {
+          if (response.status === 429) {
+            throw new WeatherProviderError(
+              "Weather provider rate limit reached (HTTP 429)",
+            );
+          }
+          if (response.status === 401 || response.status === 403) {
+            throw new WeatherProviderError(
+              "Weather provider rejected request (check API key)",
+            );
+          }
+          throw new WeatherProviderError(
+            `Weather provider returned HTTP ${response.status}`,
+          );
+        } else {
+          return (await response.json()) as T;
         }
-        if (response.status === 401 || response.status === 403) {
-          throw new WeatherProviderError('Weather provider rejected request (check API key)');
-        }
-        throw new WeatherProviderError(`Weather provider returned HTTP ${response.status}`);
+      } catch (error) {
+        if (error instanceof WeatherProviderError) throw error;
+        throw new WeatherProviderError("Unable to reach weather provider");
+      } finally {
+        clearTimeout(timeout);
       }
 
-      return (await response.json()) as T;
-    } catch (error) {
-      if (error instanceof WeatherProviderError) throw error;
-      throw new WeatherProviderError('Unable to reach weather provider');
-    } finally {
-      clearTimeout(timeout);
+      if (retryDelayMs !== null) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
     }
+
+    throw new WeatherProviderError(
+      "Weather provider rate limit reached (HTTP 429)",
+    );
   }
 
   snapshotFromPayload(
@@ -380,20 +518,22 @@ export class SingaporeWeatherClient {
     longitude: number,
   ): WeatherSnapshot {
     if (payload.code !== undefined && payload.code !== 0) {
-      throw new WeatherProviderError(payload.errorMsg ?? 'Weather provider returned an error');
+      throw new WeatherProviderError(
+        payload.errorMsg ?? "Weather provider returned an error",
+      );
     }
 
     const root = payload.data ?? payload;
     const areaMetadata = root.area_metadata ?? [];
     const items = root.items ?? [];
     if (items.length === 0) {
-      throw new WeatherProviderError('Forecast response has no items');
+      throw new WeatherProviderError("Forecast response has no items");
     }
 
     const latestItem = items[0];
     const forecasts = latestItem.forecasts ?? [];
     if (forecasts.length === 0) {
-      throw new WeatherProviderError('Forecast item has no area forecasts');
+      throw new WeatherProviderError("Forecast item has no area forecasts");
     }
 
     const forecastByArea = new Map(
@@ -406,8 +546,8 @@ export class SingaporeWeatherClient {
     if (nearestArea && forecastByArea.has(nearestArea)) {
       return {
         condition: forecastByArea.get(nearestArea) as string,
-        observed_at: latestItem.update_timestamp ?? latestItem.timestamp ?? '',
-        source: 'api-open.data.gov.sg',
+        observed_at: latestItem.update_timestamp ?? latestItem.timestamp ?? "",
+        source: "api-open.data.gov.sg",
         area: nearestArea,
         valid_period_text: latestItem.valid_period?.text ?? null,
         temperature_c: null,
@@ -428,9 +568,9 @@ export class SingaporeWeatherClient {
 
     const fallback = forecasts[0];
     return {
-      condition: fallback.forecast ?? 'Unknown',
-      observed_at: latestItem.update_timestamp ?? latestItem.timestamp ?? '',
-      source: 'api-open.data.gov.sg',
+      condition: fallback.forecast ?? "Unknown",
+      observed_at: latestItem.update_timestamp ?? latestItem.timestamp ?? "",
+      source: "api-open.data.gov.sg",
       area: fallback.area ?? null,
       valid_period_text: latestItem.valid_period?.text ?? null,
       temperature_c: null,
@@ -451,9 +591,9 @@ export class SingaporeWeatherClient {
 
   private emptyForecastSnapshot(): WeatherSnapshot {
     return {
-      condition: 'Unavailable',
-      observed_at: '',
-      source: 'api-open.data.gov.sg',
+      condition: "Unavailable",
+      observed_at: "",
+      source: "api-open.data.gov.sg",
       area: null,
       valid_period_text: null,
       temperature_c: null,
@@ -526,7 +666,12 @@ function nearestStation(
   for (const station of stations) {
     const lat = Number(station.location?.latitude);
     const lon = Number(station.location?.longitude);
-    if (!station.id || Number.isNaN(lat) || Number.isNaN(lon) || !valueByStation.has(station.id))
+    if (
+      !station.id ||
+      Number.isNaN(lat) ||
+      Number.isNaN(lon) ||
+      !valueByStation.has(station.id)
+    )
       continue;
 
     const distance = (lat - latitude) ** 2 + (lon - longitude) ** 2;
@@ -546,6 +691,16 @@ function latestTimestamp(timestamps: Array<string | null>): string | null {
   );
 }
 
+function rateLimitRetryDelay(retryAfter: string | null): number {
+  if (!retryAfter) return 10_000;
+
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+
+  const retryAt = Date.parse(retryAfter);
+  return Number.isNaN(retryAt) ? 10_000 : Math.max(0, retryAt - Date.now());
+}
+
 function numberOrNull(value: number | string | undefined): number | null {
   const number = Number(value);
   return Number.isNaN(number) ? null : number;
@@ -559,13 +714,15 @@ function valueForRegion(
   return numberOrNull(values[region]);
 }
 
-
 function defaultRegions(): RegionMetadata[] {
   return [
-    { name: 'west', labelLocation: { latitude: 1.35735, longitude: 103.7 } },
-    { name: 'north', labelLocation: { latitude: 1.41803, longitude: 103.82 } },
-    { name: 'central', labelLocation: { latitude: 1.35735, longitude: 103.82 } },
-    { name: 'south', labelLocation: { latitude: 1.29587, longitude: 103.82 } },
-    { name: 'east', labelLocation: { latitude: 1.35735, longitude: 103.94 } },
+    { name: "west", labelLocation: { latitude: 1.35735, longitude: 103.7 } },
+    { name: "north", labelLocation: { latitude: 1.41803, longitude: 103.82 } },
+    {
+      name: "central",
+      labelLocation: { latitude: 1.35735, longitude: 103.82 },
+    },
+    { name: "south", labelLocation: { latitude: 1.29587, longitude: 103.82 } },
+    { name: "east", labelLocation: { latitude: 1.35735, longitude: 103.94 } },
   ];
 }
